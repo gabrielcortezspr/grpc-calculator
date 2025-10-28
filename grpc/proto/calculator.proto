@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package calculator;
+
+// Serviço de calculadora distribuída
+service CalculatorService {
+    // Operação de adição
+    rpc Add(OperationRequest) returns (OperationResponse);
+    
+    // Operação de subtração
+    rpc Sub(OperationRequest) returns (OperationResponse);
+    
+    // Operação de multiplicação
+    rpc Mul(OperationRequest) returns (OperationResponse);
+    
+    // Operação de divisão
+    rpc Div(OperationRequest) returns (OperationResponse);
+}
+
+// Mensagem de requisição para operações
+message OperationRequest {
+    double a = 1;  // Primeiro operando
+    double b = 2;  // Segundo operando
+}
+
+// Mensagem de resposta para operações
+message OperationResponse {
+    double result = 1;     // Resultado da operação
+    string operation = 2;  // Tipo de operação realizada
+    bool success = 3;      // Indica se a operação foi bem-sucedida
+    string error_message = 4;  // Mensagem de erro (se houver)
+}
