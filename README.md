@@ -1,191 +1,97 @@
-# Calculadora Distribuída gRPC
+# gRPC Calculator
 
-## Autores da Dupla
-- Gabriel Cortez
-- Italo Monte
+![Python](https://img.shields.io/badge/Python-3.9+-3776AB?logo=python&logoColor=white)
+![gRPC](https://img.shields.io/badge/gRPC-Protocol%20Buffers-244c5a?logo=google&logoColor=white)
+[![tests](https://github.com/gabrielcortezspr/grpc-calculator/actions/workflows/tests.yml/badge.svg)](https://github.com/gabrielcortezspr/grpc-calculator/actions/workflows/tests.yml)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-## Descrição
-Implementação de uma calculadora distribuída usando gRPC com operações básicas: Add, Sub, Mul, Div.
+A distributed calculator built with **gRPC** and **Protocol Buffers** in Python. A stateless
+server exposes `Add`, `Sub`, `Mul` and `Div` as unary RPCs, with **server interceptors** for
+request logging and input validation. Built as a Distributed Systems course project by
+Gabriel Cortez and Italo Monte.
 
-### Características Implementadas
-- ✅ Serviço gRPC com operações básicas (Add, Sub, Mul, Div)
-- ✅ Chamadas unárias (não streaming)
-- ✅ Servidor stateless
-- ✅ Interceptors de log para monitoramento
-- ✅ Validação de entrada (divisão por zero)
-- ✅ Testes com grpcurl
-- ✅ Cliente Python para testes
-- ✅ Testes automatizados
-- ✅ Documentação completa
+## Highlights
 
-## Estrutura do Projeto
+- **Contract-first API:** the service is defined in [`proto/calculator.proto`](proto/calculator.proto);
+  Python stubs are generated with `grpc_tools.protoc`.
+- **Interceptors:** `LoggingInterceptor` traces every call (method, request, response) and
+  `ValidationInterceptor` rejects division by zero with `INVALID_ARGUMENT` before it reaches
+  the handler.
+- **Stateless and concurrent:** no state between calls, served by a 10-worker thread pool.
+- **Tested three ways:** automated test runner (spins the server up and down), a Python client
+  with an interactive mode, and `grpcurl` scripts. The runner also measures throughput.
+
+## Architecture
+
 ```
-grpc/
-├── proto/                    # Arquivos .proto
-│   └── calculator.proto     # Definição do serviço
-├── generated/                # Código gerado pelo protoc
-│   ├── calculator_pb2.py    # Mensagens Python
-│   └── calculator_pb2_grpc.py # Serviços Python
-├── server/                   # Implementação do servidor
-│   └── server.py            # Servidor gRPC com interceptors
-├── client/                   # Implementação do cliente
-│   └── client.py            # Cliente gRPC para testes
-├── tests/                    # Testes e exemplos
-│   ├── test_grpcurl.sh      # Script de testes com grpcurl
-│   └── test_runner.py       # Testes automatizados
-├── requirements.txt          # Dependências Python
-├── setup.sh                 # Script de instalação
-└── README.md                # Este arquivo
+┌──────────────┐   OperationRequest {a, b}   ┌──────────────────────────────────────┐
+│  client.py   │ ──────────────────────────► │ server.py  :50051                    │
+│  grpcurl     │ ◄────────────────────────── │  LoggingInterceptor                  │
+└──────────────┘  OperationResponse          │  ValidationInterceptor (b == 0 → ✗)  │
+                  {result, success, error}   │  CalculatorService: Add Sub Mul Div  │
+                                             └──────────────────────────────────────┘
 ```
 
-## Fontes de Consulta
-- Documentação oficial gRPC Python: https://grpc.io/docs/languages/python/
-- Protocol Buffers: https://developers.google.com/protocol-buffers
-- grpcurl: https://github.com/fullstorydev/grpcurl
-- Interceptors gRPC: https://grpc.io/docs/languages/python/interceptors/
+## Getting started
 
-## Instalação Rápida
-
-### Opção 1: Script Automático
 ```bash
-chmod +x setup.sh
-./setup.sh
+pip install -r requirements.txt
+
+# (optional) regenerate the stubs after editing the .proto
+python -m grpc_tools.protoc -I proto --python_out=generated --grpc_python_out=generated proto/calculator.proto
+
+python server/server.py                    # terminal 1: server on port 50051
+python client/client.py                    # terminal 2: runs the predefined operations
+python client/client.py --interactive      # or type operations by hand
 ```
 
-### Opção 2: Manual
+With [grpcurl](https://github.com/fullstorydev/grpcurl):
+
 ```bash
-# 1. Instalar dependências
-pip3 install grpcio grpcio-tools protobuf
-
-# 2. Gerar código Python
-python3 -m grpc_tools.protoc -I proto --python_out=generated --grpc_python_out=generated proto/calculator.proto
-
-# 3. Tornar scripts executáveis
-chmod +x tests/test_grpcurl.sh
-chmod +x server/server.py
-chmod +x client/client.py
+grpcurl -plaintext -import-path proto -proto calculator.proto \
+  -d '{"a": 10, "b": 5}' localhost:50051 calculator.CalculatorService/Div
 ```
 
-## Como Executar
+## Tests
 
-### 1. Executar Servidor
 ```bash
-python3 server/server.py
-```
-O servidor será iniciado na porta 50051 com interceptors de log e validação.
-
-### 2. Executar Cliente (Testes Automáticos)
-```bash
-python3 client/client.py
+python tests/test_runner.py    # starts the server, runs the suite, stops the server
+./tests/test_grpcurl.sh        # same scenarios through grpcurl
 ```
 
-### 3. Executar Cliente (Modo Interativo)
-```bash
-python3 client/client.py --interactive
+Covers the four operations, decimal and negative operands, division by zero rejected by the
+interceptor, and a 100-call throughput check. The suite runs on every push through GitHub
+Actions.
+
+Sample server log:
+
+```
+INFO - Starting unary call: /calculator.CalculatorService/Add
+INFO - Request received: a: 10.0 b: 5.0
+INFO - Addition: 10.0 + 5.0 = 15.0
+INFO - Unary call finished: /calculator.CalculatorService/Add
 ```
 
-### 4. Testes Automatizados
-```bash
-python3 tests/test_runner.py
+(The actual log messages are in Portuguese.)
+
+## Project structure
+
+```
+├── proto/calculator.proto   # service contract
+├── generated/               # protoc output (calculator_pb2*.py)
+├── server/server.py         # service implementation + interceptors
+├── client/client.py         # test client, automatic and interactive modes
+├── tests/                   # test runner and grpcurl script
+├── docs/video-script.md     # presentation script (Portuguese)
+└── setup.sh                 # installs dependencies and regenerates the stubs
 ```
 
-### 5. Testes com grpcurl
-```bash
-# Instalar grpcurl (se necessário)
-go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+## References
 
-# Executar testes
-./tests/test_grpcurl.sh
+- [gRPC Python documentation](https://grpc.io/docs/languages/python/)
+- [Protocol Buffers](https://protobuf.dev/)
+- [gRPC interceptors](https://grpc.io/docs/guides/interceptors/)
 
-# Ou comandos individuais:
-grpcurl -plaintext localhost:50051 list
-grpcurl -plaintext -d '{"a": 10, "b": 5}' localhost:50051 calculator.CalculatorService/Add
-```
+## License
 
-## Exemplos de Uso
-
-### Operações Básicas
-```bash
-# Adição
-grpcurl -plaintext -d '{"a": 10, "b": 5}' localhost:50051 calculator.CalculatorService/Add
-
-# Subtração
-grpcurl -plaintext -d '{"a": 10, "b": 5}' localhost:50051 calculator.CalculatorService/Sub
-
-# Multiplicação
-grpcurl -plaintext -d '{"a": 10, "b": 5}' localhost:50051 calculator.CalculatorService/Mul
-
-# Divisão
-grpcurl -plaintext -d '{"a": 10, "b": 5}' localhost:50051 calculator.CalculatorService/Div
-```
-
-### Casos Especiais
-```bash
-# Divisão por zero (deve retornar erro)
-grpcurl -plaintext -d '{"a": 10, "b": 0}' localhost:50051 calculator.CalculatorService/Div
-
-# Números decimais
-grpcurl -plaintext -d '{"a": 3.14, "b": 2.86}' localhost:50051 calculator.CalculatorService/Add
-```
-
-## Arquitetura
-
-### Servidor
-- **Porta**: 50051
-- **Interceptors**: 
-  - `LoggingInterceptor`: Registra todas as requisições e respostas
-  - `ValidationInterceptor`: Valida entrada e previne divisão por zero
-- **Thread Pool**: 10 workers para processamento concorrente
-- **Logging**: Configurado com nível INFO
-
-### Cliente
-- **Modo Automático**: Executa testes pré-definidos
-- **Modo Interativo**: Permite entrada manual de operações
-- **Tratamento de Erros**: Captura e exibe erros gRPC
-
-### Protocolo
-- **Tipo**: Chamadas unárias (não streaming)
-- **Estado**: Stateless (sem persistência de estado)
-- **Formato**: Protocol Buffers v3
-
-## Logs e Monitoramento
-
-O servidor produz logs detalhados incluindo:
-- Início e fim de cada requisição
-- Parâmetros de entrada
-- Resultados das operações
-- Erros e exceções
-- Tentativas de divisão por zero
-
-Exemplo de log:
-```
-2024-01-15 10:30:15 - INFO - Iniciando chamada unária: /calculator.CalculatorService/Add
-2024-01-15 10:30:15 - INFO - Requisição recebida: a: 10.0 b: 5.0
-2024-01-15 10:30:15 - INFO - Adição realizada: 10.0 + 5.0 = 15.0
-2024-01-15 10:30:15 - INFO - Resposta enviada: result: 15.0 operation: "Add" success: true
-2024-01-15 10:30:15 - INFO - Chamada unária concluída: /calculator.CalculatorService/Add
-```
-
-## Testes
-
-### Cobertura de Testes
-- ✅ Operações básicas (Add, Sub, Mul, Div)
-- ✅ Casos de erro (divisão por zero)
-- ✅ Números decimais e negativos
-- ✅ Performance (100 operações)
-- ✅ Conexão e desconexão
-- ✅ Validação de entrada
-
-### Executar Todos os Testes
-```bash
-python3 tests/test_runner.py
-```
-
-### Testes Individuais
-```bash
-# Testes básicos
-python3 client/client.py
-
-# Testes com grpcurl
-./tests/test_grpcurl.sh
-```
+[MIT](LICENSE)

@@ -12,7 +12,6 @@ import sys
 import os
 import signal
 import threading
-import requests
 import json
 
 # Adicionar o diretório generated ao path

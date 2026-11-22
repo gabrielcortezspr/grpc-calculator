@@ -15,7 +15,7 @@ fi
 
 # Instalar dependências
 echo "Instalando dependências..."
-pip3 install grpcio grpcio-tools protobuf
+pip3 install -r requirements.txt
 
 # Gerar código Python a partir do .proto
 echo "Gerando código Python..."
